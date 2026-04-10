@@ -1,0 +1,92 @@
+{
+  "categories": {
+    "finance": {
+      "name": "金融・日本株",
+      "enabled": true,
+      "rss_feeds": [
+        {
+          "name": "Bloomberg Japan",
+          "url": "https://feeds.bloomberg.com/markets/news.rss",
+          "enabled": true,
+          "memo": "Bloomberg グローバルマーケットニュース（英語）"
+        },
+        {
+          "name": "Nikkei Asia",
+          "url": "https://asia.nikkei.com/rss/feed/nar",
+          "enabled": true,
+          "memo": "日経系・アジア・グローバル視点（英語）"
+        },
+        {
+          "name": "Yahoo!ニュース 経済",
+          "url": "https://news.yahoo.co.jp/rss/topics/business.xml",
+          "enabled": true,
+          "memo": "日本語・幅広い経済ニュース"
+        },
+        {
+          "name": "NHK ニュース 経済",
+          "url": "https://www3.nhk.or.jp/rss/news/cat6.xml",
+          "enabled": true,
+          "memo": "NHK経済ニュース・信頼性高"
+        },
+        {
+          "name": "東洋経済オンライン",
+          "url": "https://toyokeizai.net/list/feed/rss",
+          "enabled": true,
+          "memo": "企業・ビジネス分析に強い日本語メディア"
+        },
+        {
+          "name": "Investing.com Japan",
+          "url": "https://jp.investing.com/rss/news.rss",
+          "enabled": true,
+          "memo": "金融特化・経済指標情報が充実"
+        },
+        {
+          "name": "Google News 日本株",
+          "url": "https://news.google.com/rss/search?q=%E6%97%A5%E6%9C%AC%E6%A0%AA&hl=ja&gl=JP&ceid=JP:ja",
+          "enabled": true,
+          "memo": "「日本株」キーワードでGoogle Newsを自動収集"
+        },
+        {
+          "name": "Seeking Alpha",
+          "url": "https://seekingalpha.com/feed.xml",
+          "enabled": false,
+          "memo": "英語・米国株メイン。必要なら有効化"
+        }
+      ],
+      "youtube_channels": [
+        {
+          "name": "両学長 リベラルアーツ大学",
+          "channel_id": "UC0MpXBOCTBMHBkJTSJMcfEg",
+          "enabled": true,
+          "memo": "日本株・資産運用の解説"
+        },
+        {
+          "name": "高橋ダン（Dan Takahashi）",
+          "channel_id": "UCXjTiSGclQLVVFBANbPytBg",
+          "enabled": true,
+          "memo": "日本語・グローバル金融分析"
+        },
+        {
+          "name": "PLANET MONEY（NPR）",
+          "channel_id": "UCZpDFxjSAz5P6CzfChx1oCg",
+          "enabled": false,
+          "memo": "英語・経済ポッドキャスト。必要なら有効化"
+        }
+      ]
+    },
+    "medical": {
+      "name": "医療",
+      "enabled": false,
+      "rss_feeds": [],
+      "youtube_channels": [],
+      "memo": "将来追加予定。enabledをtrueにして内容を追加すれば使えます"
+    },
+    "ai_tech": {
+      "name": "AI・テクノロジー",
+      "enabled": false,
+      "rss_feeds": [],
+      "youtube_channels": [],
+      "memo": "将来追加予定。enabledをtrueにして内容を追加すれば使えます"
+    }
+  }
+}

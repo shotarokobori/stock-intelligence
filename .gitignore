@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.env/
+
+# Secrets and local settings
+.env
+config.json
+
+# Runtime data
+logs/
+*.log
+
+# Saved reports
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+.claudeignore
