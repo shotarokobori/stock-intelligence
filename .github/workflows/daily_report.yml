@@ -1,0 +1,56 @@
+name: 毎日投資レポート送信
+
+on:
+  schedule:
+    # 毎朝8時（日本時間）= UTC 23時（前日）
+    - cron: '0 23 * * *'
+  # 手動実行ボタンも使えるようにする
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      # リポジトリのコードを取得
+      - name: コードを取得
+        uses: actions/checkout@v4
+
+      # Pythonをセットアップ
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 必要なライブラリをインストール
+      - name: ライブラリをインストール
+        run: pip install -r requirements.txt
+
+      # .envファイルをSecretsから生成
+      - name: .envファイルを生成
+        run: |
+          cat > .env << EOF
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL=claude-opus-4-5
+          ANTHROPIC_MAX_TOKENS=8000
+          YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_MAX_RESULTS_PER_CHANNEL=3
+          YOUTUBE_PUBLISHED_WITHIN_HOURS=24
+          GMAIL_SENDER_EMAIL=${{ secrets.GMAIL_SENDER_EMAIL }}
+          GMAIL_SENDER_PASSWORD=${{ secrets.GMAIL_SENDER_PASSWORD }}
+          GMAIL_RECIPIENT_EMAILS=${{ secrets.GMAIL_RECIPIENT_EMAILS }}
+          SYSTEM_MAX_ARTICLES_PER_SOURCE=5
+          SYSTEM_ARTICLE_PREVIEW_CHARS=300
+          SYSTEM_YOUTUBE_TRANSCRIPT_CHARS=3000
+          SYSTEM_LOG_FILE=logs/system.log
+          SYSTEM_DATA_DIR=data
+          SYSTEM_TEST_MODE=false
+          REPORT_SEND_HOUR=8
+          REPORT_SEND_MINUTE=0
+          REPORT_LANGUAGE=日本語
+          REPORT_INVESTMENT_FOCUS=日本株
+          EOF
+
+      # メインプログラムを実行
+      - name: レポートを送信
+        run: python main.py
