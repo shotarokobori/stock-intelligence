@@ -49,6 +49,7 @@ jobs:
           REPORT_SEND_MINUTE=0
           REPORT_LANGUAGE=日本語
           REPORT_INVESTMENT_FOCUS=日本株
+          LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           EOF
 
       # メインプログラムを実行
