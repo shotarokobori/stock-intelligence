@@ -474,8 +474,17 @@ def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
         log.warning("LINEチャンネルアクセストークンが未設定です。送信をスキップします。")
         return
 
-    # HTMLタグを除去してプレーンテキストに変換
-    plain_text = re.sub(r'<[^>]+>', '', report_text)
+    # LINE用テキスト整形
+    plain_text = report_text
+    # ブロック要素を改行に変換
+    plain_text = re.sub(r'<br\s*/?>', '\n', plain_text, flags=re.IGNORECASE)
+    plain_text = re.sub(r'</p>', '\n', plain_text, flags=re.IGNORECASE)
+    plain_text = re.sub(r'</h[1-6]>', '\n', plain_text, flags=re.IGNORECASE)
+    plain_text = re.sub(r'</li>', '\n', plain_text, flags=re.IGNORECASE)
+    plain_text = re.sub(r'<li[^>]*>', '・', plain_text, flags=re.IGNORECASE)
+    # 残りのHTMLタグを除去
+    plain_text = re.sub(r'<[^>]+>', '', plain_text)
+    # 連続する空白行を整理
     plain_text = re.sub(r'\n{3,}', '\n\n', plain_text).strip()
 
     # LINEの1メッセージ上限（5000文字）に合わせてカット
@@ -637,8 +646,16 @@ def main():
     prompt      = build_prompt(all_articles, all_videos)
     report_text = generate_report_with_claude(prompt, config)
 
+    # ── HTMLメール生成 ──
+    log.info("【ステップ4】HTMLメール生成")
+    html = build_html_email(report_text, all_articles, all_videos)
+
+    # ── メール送信 ──
+    log.info("【ステップ5】メール送信")
+    send_gmail(html, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
+
     # ── LINE送信 ──
-    log.info("【ステップ5】LINE送信")
+    log.info("【ステップ6】LINE送信")
     send_line(report_text, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
 
     print("\n✅ すべての処理が完了しました！\n")
