@@ -13,6 +13,7 @@
 import json
 import logging
 import os
+import re
 import smtplib
 import sys
 import traceback
@@ -458,6 +459,59 @@ def send_gmail(html_content: str, config: dict, test_mode: bool = False):
 
 
 # ─────────────────────────────────────────────
+# ⑥ LINE送信
+# ─────────────────────────────────────────────
+
+def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
+    """
+    LINE Messaging API でレポートを送信する。
+    複数ユーザーへのマルチキャスト送信に対応。
+    """
+    line_cfg = config["line"]
+    token    = line_cfg.get("channel_access_token", "")
+
+    if not token:
+        log.warning("LINEチャンネルアクセストークンが未設定です。送信をスキップします。")
+        return
+
+    # HTMLタグを除去してプレーンテキストに変換
+    plain_text = re.sub(r'<[^>]+>', '', report_text)
+    plain_text = re.sub(r'\n{3,}', '\n\n', plain_text).strip()
+
+    # LINEの1メッセージ上限（5000文字）に合わせてカット
+    today = datetime.now().strftime("%Y年%m月%d日")
+    header = f"📊 日本株インテリジェンス {today}\n\n"
+    limit = 4900 - len(header)
+    if len(plain_text) > limit:
+        plain_text = plain_text[:limit] + "\n\n…（全文は省略されました）"
+    message = header + plain_text
+
+    if test_mode:
+        log.info("[テストモード] LINE送信スキップ")
+        print("\n✅ [テストモード] LINE送信スキップ\n")
+        return
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messages": [{"type": "text", "text": message}],
+    }
+    response = requests.post(
+        "https://api.line.me/v2/bot/message/broadcast",
+        headers=headers,
+        json=payload,
+    )
+    if response.status_code == 200:
+        log.info("LINE一斉送信完了")
+        print("\n✅ LINE一斉送信完了\n")
+    else:
+        log.error(f"LINE送信失敗: {response.status_code} {response.text}")
+        raise Exception(f"LINE送信エラー: {response.status_code} {response.text}")
+
+
+# ─────────────────────────────────────────────
 # メイン処理
 # ─────────────────────────────────────────────
 
@@ -523,6 +577,10 @@ def main():
             "investment_focus": env_config.get("REPORT_INVESTMENT_FOCUS", json_config.get("report", {}).get("investment_focus", "日本株")),
             "memo": env_config.get("REPORT_MEMO", json_config.get("report", {}).get("memo", "")),
         },
+        "line": {
+            "channel_access_token": env_config.get("LINE_CHANNEL_ACCESS_TOKEN", ""),
+            "user_ids": parse_list(env_config.get("LINE_USER_IDS", "")),
+        },
     }
 
     sys_cfg = config["system"]
@@ -579,13 +637,9 @@ def main():
     prompt      = build_prompt(all_articles, all_videos)
     report_text = generate_report_with_claude(prompt, config)
 
-    # ── HTMLメール生成 ──
-    log.info("【ステップ4】HTMLメール生成")
-    html = build_html_email(report_text, all_articles, all_videos)
-
-    # ── 送信 ──
-    log.info("【ステップ5】メール送信")
-    send_gmail(html, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
+    # ── LINE送信 ──
+    log.info("【ステップ5】LINE送信")
+    send_line(report_text, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
 
     print("\n✅ すべての処理が完了しました！\n")
 
