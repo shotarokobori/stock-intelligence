@@ -29,6 +29,7 @@ from pathlib import Path
 import anthropic
 import feedparser
 import requests
+import yfinance as yf
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 
@@ -99,7 +100,39 @@ def parse_list(value):
 
 
 # ─────────────────────────────────────────────
-# ① RSSニュース収集
+# ① リアルタイム市場データ取得
+# ─────────────────────────────────────────────
+
+def fetch_market_data() -> dict:
+    """
+    yfinance を使って主要市場指数のリアルタイムデータを取得する。
+    取得できなかった場合は None を返す。
+    返り値: {"nikkei": 数値, "usdjpy": 数値, "dow": 数値, "sp500": 数値}
+    """
+    result = {}
+    symbols = {
+        "nikkei": "^N225",    # 日経平均株価
+        "usdjpy": "USDJPY=X", # ドル円
+        "dow":    "^DJI",     # NYダウ
+        "sp500":  "^GSPC",    # S&P500
+    }
+    try:
+        for key, symbol in symbols.items():
+            try:
+                ticker = yf.Ticker(symbol)
+                price = ticker.fast_info.get("lastPrice") or ticker.fast_info.get("previousClose")
+                result[key] = round(float(price), 2) if price else None
+            except Exception as e:
+                log.warning(f"  市場データ取得失敗 [{symbol}]: {e}")
+                result[key] = None
+        log.info(f"  市場データ取得完了: 日経={result.get('nikkei')}, ドル円={result.get('usdjpy')}, NYダウ={result.get('dow')}")
+    except Exception as e:
+        log.warning(f"  市場データ全体の取得に失敗しました: {e}")
+    return result
+
+
+# ─────────────────────────────────────────────
+# ② RSSニュース収集
 # ─────────────────────────────────────────────
 
 def fetch_rss_articles(feed_info: dict, max_articles: int, preview_chars: int) -> list[dict]:
@@ -219,12 +252,30 @@ def fetch_youtube_videos(channel_info: dict, api_key: str,
 # ③ Claude APIで統合分析レポートを生成
 # ─────────────────────────────────────────────
 
-def build_prompt(articles: list[dict], videos: list[dict]) -> str:
+def build_prompt(articles: list[dict], videos: list[dict], market_data: dict | None = None) -> str:
     """
     Claude に渡すプロンプトを組み立てる。
     日本株運用で勝つことを目的とした統合分析レポートを要求する。
     """
     today = datetime.now().strftime("%Y年%m月%d日（%A）")
+
+    # ── リアルタイム市場データ ──
+    if market_data:
+        def fmt(v, suffix=""):
+            return f"{v:,.2f}{suffix}" if v is not None else "取得不可"
+        market_text = f"""
+━━━━━━━━━━━━━━━━━━━━━━━━
+■ 本日のリアルタイム市場データ（{today}時点）
+━━━━━━━━━━━━━━━━━━━━━━━━
+・日経平均株価: {fmt(market_data.get('nikkei'))} 円
+・ドル円:       {fmt(market_data.get('usdjpy'))} 円
+・NYダウ:       {fmt(market_data.get('dow'))} ドル
+・S&P500:       {fmt(market_data.get('sp500'))}
+
+※上記は取得時点の実際の値です。レポート内で日経平均などの株価水準に言及する際は、必ずこの数値を基準にしてください。
+"""
+    else:
+        market_text = ""
 
     # ── ニュース記事パート ──
     articles_text = ""
@@ -253,7 +304,7 @@ URL: {v['url']}
     # ── プロンプト本文 ──
     prompt = f"""あなたは日本株投資の専門アナリストです。
 今日（{today}）収集した以下の金融ニュースとYouTube動画を、日本株運用で利益を上げることを唯一の目的として分析し、統合レポートを作成してください。
-
+{market_text}
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ■ 今日のニュース記事
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -641,21 +692,25 @@ def main():
         print("\n⚠️  本日の新着コンテンツが0件でした。ソース設定を確認してください。")
         return
 
+    # ── リアルタイム市場データ取得 ──
+    log.info("【ステップ3】リアルタイム市場データ取得")
+    market_data = fetch_market_data()
+
     # ── Claude APIで統合分析 ──
-    log.info("【ステップ3】Claude APIで統合分析開始")
-    prompt      = build_prompt(all_articles, all_videos)
+    log.info("【ステップ4】Claude APIで統合分析開始")
+    prompt      = build_prompt(all_articles, all_videos, market_data)
     report_text = generate_report_with_claude(prompt, config)
 
     # ── HTMLメール生成 ──
-    log.info("【ステップ4】HTMLメール生成")
+    log.info("【ステップ5】HTMLメール生成")
     html = build_html_email(report_text, all_articles, all_videos)
 
     # ── メール送信 ──
-    log.info("【ステップ5】メール送信")
+    log.info("【ステップ6】メール送信")
     send_gmail(html, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
 
     # ── LINE送信 ──
-    log.info("【ステップ6】LINE送信")
+    log.info("【ステップ7】LINE送信")
     send_line(report_text, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
 
     print("\n✅ すべての処理が完了しました！\n")
