@@ -16,8 +16,9 @@ config.json
 logs/
 *.log
 
-# Saved reports
-data/
+# Saved reports (pick.json のみ追跡対象)
+data/*
+!data/pick.json
 
 # OS files
 .DS_Store

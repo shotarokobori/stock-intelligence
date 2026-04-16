@@ -40,6 +40,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, Tran
 BASE_DIR      = Path(__file__).parent
 LOG_DIR       = BASE_DIR / "logs"
 DATA_DIR      = BASE_DIR / "data"
+PICK_FILE     = DATA_DIR / "pick.json"
 SITE_BASE_URL = "https://shotarokobori.github.io/stock-intelligence"
 LOG_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
@@ -253,7 +254,7 @@ def fetch_youtube_videos(channel_info: dict, api_key: str,
 # ③ Claude APIで統合分析レポートを生成
 # ─────────────────────────────────────────────
 
-def build_prompt(articles: list[dict], videos: list[dict], market_data: dict | None = None) -> str:
+def build_prompt(articles: list[dict], videos: list[dict], market_data: dict | None = None, pick_context: str = "") -> str:
     """
     Claude に渡すプロンプトを組み立てる。
     日本株運用で勝つことを目的とした統合分析レポートを要求する。
@@ -364,7 +365,24 @@ URL: {v['url']}
 - 今日の総合的な投資スタンス（2〜3行）
 ※投資は自己責任である旨を添える
 
-①〜⑤を必ずすべて完結させること。⑤は絶対に省略しないこと。"""
+①〜⑤を必ずすべて完結させること。⑤は絶対に省略しないこと。
+
+【⑦　本日の激推し株（必須・絶対に省略しない）】
+あなたが最も自信を持って「今日中に上がりそう」と思う株を1銘柄だけ選ぶこと。
+ニュースや市場データを参考にしても、独自の判断でも良い。
+
+必ず以下のdata属性を持つspan要素を含めること（システムが読み取るため必須）：
+<span class="pick-meta" data-ticker="[証券コード].T" data-name="[銘柄名]" style="display:none;"></span>
+
+表示フォーマット（HTMLで生成）：
+- 背景：濃紺グラデーション（#1a237e → #283593）、角丸、余白あり、白文字
+- 見出し：🌱 本日の激推し株 🌱（ゴールド色・大きめ）
+- 銘柄名と証券コード・現在株価（取得できない場合は「株価取得中」）
+- 推奨理由を2〜3行（簡潔に）
+
+{pick_context}
+
+⑦は絶対に省略しないこと。"""
 
     return prompt
 
@@ -542,7 +560,67 @@ def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
 
 
 # ─────────────────────────────────────────────
-# ⑦ 送信時刻まで待機
+# ⑦ 激推し株：昨日データ読み込み・損益計算・今日分保存
+# ─────────────────────────────────────────────
+
+def load_yesterday_pick() -> dict | None:
+    """昨日の激推し株データをpick.jsonから読み込む"""
+    if not PICK_FILE.exists():
+        return None
+    try:
+        with open(PICK_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        pick_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+        days_diff  = (datetime.now().date() - pick_date).days
+        if days_diff > 4:  # 土日・祝日を考慮し4日以上前なら無効
+            return None
+        return data
+    except Exception as e:
+        log.warning(f"昨日の激推し株データ読み込みエラー: {e}")
+        return None
+
+
+def fetch_pick_result(pick: dict) -> dict | None:
+    """昨日の激推し株の寄り値→引き値を取得し100株損益を計算する"""
+    try:
+        ticker = yf.Ticker(pick["ticker"])
+        hist   = ticker.history(period="5d")
+        if hist.empty:
+            return None
+        latest      = hist.iloc[-1]
+        open_price  = round(float(latest["Open"]),  1)
+        close_price = round(float(latest["Close"]), 1)
+        profit      = int((close_price - open_price) * 100)
+        return {
+            "name": pick["name"], "code": pick["code"],
+            "open": open_price,   "close": close_price, "profit": profit,
+        }
+    except Exception as e:
+        log.warning(f"激推し株価格取得エラー: {e}")
+        return None
+
+
+def save_today_pick(report_text: str) -> None:
+    """Claude が選んだ今日の激推し株をpick.jsonに保存する"""
+    m = re.search(r'data-ticker="([^"]+)"[^>]*data-name="([^"]+)"', report_text)
+    if not m:
+        m = re.search(r'data-name="([^"]+)"[^>]*data-ticker="([^"]+)"', report_text)
+        if m:
+            name, ticker = m.group(1), m.group(2)
+        else:
+            log.warning("今日の激推し株データが抽出できませんでした")
+            return
+    else:
+        ticker, name = m.group(1), m.group(2)
+    code = ticker.replace(".T", "")
+    data = {"date": datetime.now().strftime("%Y-%m-%d"), "ticker": ticker, "name": name, "code": code}
+    with open(PICK_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    log.info(f"今日の激推し株を保存: {name}（{code}）")
+
+
+# ─────────────────────────────────────────────
+# ⑧ 送信時刻まで待機
 # ─────────────────────────────────────────────
 
 def wait_until_send_time():
@@ -690,10 +768,34 @@ def main():
     log.info("【ステップ3】リアルタイム市場データ取得")
     market_data = fetch_market_data()
 
+    # ── 昨日の激推し株データ読み込み ──
+    log.info("【ステップ4準備】昨日の激推し株データを確認")
+    yesterday_pick   = load_yesterday_pick()
+    yesterday_result = fetch_pick_result(yesterday_pick) if yesterday_pick else None
+
+    if yesterday_result:
+        sign  = "+" if yesterday_result["profit"] >= 0 else ""
+        emoji = "📈" if yesterday_result["profit"] >= 0 else "📉"
+        pick_context = f"""
+昨日の振り返りデータ（以下を⑦セクションに必ず含めること）：
+昨日の激推し株：{yesterday_result['name']}（{yesterday_result['code']}）
+寄り値：{yesterday_result['open']:,}円 → 引き値：{yesterday_result['close']:,}円
+100株損益：{sign}{yesterday_result['profit']:,}円 {emoji}
+
+表示フォーマット：
+「昨日100株買ってたら、、？」という見出しの後に
+{yesterday_result['name']}（{yesterday_result['code']}）　{yesterday_result['open']:,}円 → {yesterday_result['close']:,}円
+±○○○円の部分は font-size:32px・font-weight:bold・text-align:center で大きく表示すること。"""
+    else:
+        pick_context = "昨日の振り返り：昨日の激推し株データなし（初回のため省略）。"
+
     # ── Claude APIで統合分析 ──
     log.info("【ステップ4】Claude APIで統合分析開始")
-    prompt      = build_prompt(all_articles, all_videos, market_data)
+    prompt      = build_prompt(all_articles, all_videos, market_data, pick_context)
     report_text = generate_report_with_claude(prompt, config)
+
+    # ── 今日の激推し株を保存 ──
+    save_today_pick(report_text)
 
     # ── HTMLメール生成 ──
     log.info("【ステップ5】HTMLメール生成")
