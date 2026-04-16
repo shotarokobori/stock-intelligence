@@ -600,6 +600,22 @@ def fetch_pick_result(pick: dict) -> dict | None:
         return None
 
 
+def fetch_previous_close(ticker: str) -> str:
+    """銘柄の前日終値を取得して「前日終値：XX,XXX円」形式で返す"""
+    try:
+        t = yf.Ticker(ticker)
+        price = t.fast_info.get("previousClose")
+        if price:
+            return f"前日終値：{int(price):,}円"
+        # fast_info で取れない場合は history から取得
+        hist = t.history(period="5d")
+        if not hist.empty:
+            return f"前日終値：{int(hist['Close'].iloc[-1]):,}円"
+    except Exception as e:
+        log.warning(f"前日終値取得エラー [{ticker}]: {e}")
+    return "株価取得中"
+
+
 def save_today_pick(report_text: str) -> None:
     """Claude が選んだ今日の激推し株をpick.jsonに保存する"""
     m = re.search(r'data-ticker="([^"]+)"[^>]*data-name="([^"]+)"', report_text)
@@ -794,8 +810,13 @@ def main():
     prompt      = build_prompt(all_articles, all_videos, market_data, pick_context)
     report_text = generate_report_with_claude(prompt, config)
 
-    # ── 今日の激推し株を保存 ──
+    # ── 今日の激推し株を保存・前日終値を差し替え ──
     save_today_pick(report_text)
+    # 抽出したtickerで前日終値を取得し「株価取得中」を差し替える
+    m_ticker = re.search(r'data-ticker="([^"]+)"', report_text)
+    if m_ticker:
+        prev_close_str = fetch_previous_close(m_ticker.group(1))
+        report_text = report_text.replace("株価取得中", prev_close_str)
 
     # ── HTMLメール生成 ──
     log.info("【ステップ5】HTMLメール生成")
