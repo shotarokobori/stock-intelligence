@@ -13,6 +13,8 @@ permissions:
 jobs:
   send-report:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Tokyo
 
     steps:
       # リポジトリのコードを取得

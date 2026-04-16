@@ -618,16 +618,14 @@ def fetch_previous_close(ticker: str) -> str:
 
 def save_today_pick(report_text: str) -> None:
     """Claude が選んだ今日の激推し株をpick.jsonに保存する"""
-    m = re.search(r'data-ticker="([^"]+)"[^>]*data-name="([^"]+)"', report_text)
-    if not m:
-        m = re.search(r'data-name="([^"]+)"[^>]*data-ticker="([^"]+)"', report_text)
-        if m:
-            name, ticker = m.group(1), m.group(2)
-        else:
-            log.warning("今日の激推し株データが抽出できませんでした")
-            return
-    else:
-        ticker, name = m.group(1), m.group(2)
+    # data-ticker と data-name を順不同・間に他属性があっても拾えるように個別抽出
+    m_ticker = re.search(r'data-ticker=["\']([^"\']+)["\']', report_text)
+    m_name   = re.search(r'data-name=["\']([^"\']+)["\']', report_text)
+    if not m_ticker or not m_name:
+        log.warning("今日の激推し株データが抽出できませんでした")
+        return
+    ticker = m_ticker.group(1)
+    name   = m_name.group(1)
     code = ticker.replace(".T", "")
     data = {"date": datetime.now().strftime("%Y-%m-%d"), "ticker": ticker, "name": name, "code": code}
     with open(PICK_FILE, "w", encoding="utf-8") as f:
@@ -841,7 +839,10 @@ def main():
 
     # ── LINE送信 ──
     log.info("【ステップ7】LINE送信")
-    send_line(report_text, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
+    try:
+        send_line(report_text, config, test_mode=test_mode or sys_cfg.get("test_mode", False))
+    except Exception as e:
+        log.error(f"LINE送信に失敗しましたが処理を続行します: {e}")
 
     print("\n✅ すべての処理が完了しました！\n")
 
