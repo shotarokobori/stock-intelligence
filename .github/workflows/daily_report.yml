@@ -2,8 +2,8 @@ name: 毎日投資レポート送信
 
 on:
   schedule:
-    # 毎朝8時（日本時間）= UTC 23時（前日）
-    - cron: '0 23 * * *'
+    # 毎朝7時（日本時間）に処理開始 = UTC 22時（前日）→ Python内で8時JST送信待機
+    - cron: "0 22 * * *"
   # 手動実行ボタンも使えるようにする
   workflow_dispatch:
 
@@ -20,7 +20,7 @@ jobs:
       - name: Pythonをセットアップ
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       # 必要なライブラリをインストール
       - name: ライブラリをインストール
@@ -31,7 +31,7 @@ jobs:
         run: |
           cat > .env << EOF
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL=claude-opus-4-5
+          ANTHROPIC_MODEL=claude-sonnet-4-6
           ANTHROPIC_MAX_TOKENS=8000
           YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_MAX_RESULTS_PER_CHANNEL=3

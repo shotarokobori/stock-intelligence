@@ -321,6 +321,7 @@ URL: {v['url']}
 
 以下の構成で、スタイル付きのHTMLコンテンツを日本語で作成してください。
 ※出力はbodyタグ内に入れるdivのみ。DOCTYPE・html・head・bodyタグは不要。
+※先頭に必ず「まいにち日本株短信」というh1タイトルを入れること。「日本株デイリーレポート」「日本株投資レポート」等の別タイトルは使わないこと。
 ※スマホ優先デザイン：固定px幅は使わずmax-widthと%を使うこと。文字サイズは本文14px。背景は白または明るい色ベース。余白は指タップしやすい大きさに。長い文章は適切な位置で改行し、読みやすい行長（1行25〜35文字程度）を心がけること。
 ※全体の目標トークン数：6000以内。最大8000以内。余計な装飾・繰り返しは省くこと。
 
@@ -329,27 +330,31 @@ URL: {v['url']}
 重要度が低い・関連性が薄いと判断した記事は完全に無視してよい。
 その日のニュース状況をもとに毎回動的に判断すること。
 
-【①　1行サマリー（3〜7件）】
-選んだ記事を日本株影響度が高い順に1行で要約。
-番号は②の番号と完全に一致させること。
+【①　1行サマリー（計5件）】
+以下の2グループに分けて、それぞれ番号を振ること。番号は②の番号と完全に一致させること。
+
+▼ マクロ重要ニュース（3件）：日本株市場全体に最も影響を与えるニュースを3件、影響度が高い順に1行で要約。
+▼ 個別株・セクター注目ニュース（2件）：特定の銘柄やセクターへの影響が大きいニュースを2件、1行で要約。
 
 【②　要点と解説】
-①で選んだ各ニュースについて：
+①で選んだ5件それぞれについて：
 - 何が起きたか（1〜2行）
 - なぜ重要か・背景（2〜3行）
 - 専門用語は「※〇〇とは：〜」で必ず注釈
-- 日本株への影響（2〜3行）
+- 日本株・関連銘柄への影響（2〜3行）
 
-【③　横断・統合考察（丁寧に）】
+【③　横断・統合考察】
 複数ソースを横断して見えてくる今日のテーマ・流れを丁寧に分析すること。
 因果関係・リスク・見落とされがちな視点を含め、500字程度でしっかり書くこと。
 
 【④　今後1〜2週間の注目ポイント】
 箇条書き3〜4項目のみ。日付・イベント・影響を簡潔に。
 
-【⑤　日本株・個別株への見通し（必須・丁寧に）】
-このセクションは絶対に省略せず、最も丁寧に書くこと。
+【⑤　日本株・個別株への見通し（☆最重要・絶対に省略しない）】
+このセクションは最も丁寧に・最も具体的に書くこと。
+
 - 日経平均の方向性（↑↓→）と根拠（3〜4行）
+- TOPIXの方向性（↑↓→）と根拠（2〜3行）
 - 注目セクター：3〜5業種（方向・理由を各1〜2行）
 - 注目個別銘柄：必ず3〜5銘柄（銘柄名・証券コード・注目理由・リスクを各2行）
 - 今日の総合的な投資スタンス（2〜3行）
@@ -389,79 +394,51 @@ def build_html_email(report_text: str, articles: list[dict], videos: list[dict])
     # ClaudeがHTML形式で生成したレポートをそのまま使用する
     report_html = report_text
 
-    # ソース一覧を生成
-    sources_html = ""
-    for a in articles:
-        sources_html += f'<li><a href="{a["url"]}" style="color:#1a73e8;">{a["source"]}：{a["title"]}</a></li>'
-    for v in videos:
-        sources_html += f'<li><a href="{v["url"]}" style="color:#c00;">[YouTube] {v["source"]}：{v["title"]}</a></li>'
+    # ソース名をコンパクトにまとめる（重複除去）
+    source_names = list(dict.fromkeys(
+        [a["source"] for a in articles] + [v["source"] for v in videos]
+    ))
+    sources_text = "　｜　".join(source_names)
 
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>日本株インテリジェンス｜{today}</title>
+<title>まいにち日本株短信｜{today}</title>
 <style>
-  /* ── スマホ対応 ── */
-  body {{ margin:0; padding:0; background:#f4f4f4; }}
-  .outer {{ width:100%; background:#f4f4f4; padding:12px 0; }}
-  .inner {{ width:100%; max-width:680px; margin:0 auto; background:#ffffff;
-            border-radius:8px; overflow:hidden;
-            box-shadow:0 2px 8px rgba(0,0,0,0.1); }}
-  .header {{ background:linear-gradient(135deg,#1a237e,#283593); padding:20px 16px; }}
-  .header h1 {{ margin:6px 0 4px; color:#fff; font-size:20px; font-weight:700; }}
-  .header p  {{ margin:0; color:#bbdefb; font-size:13px; }}
-  .header .label {{ color:#90caf9; font-size:11px; letter-spacing:2px; margin:0; }}
+  body {{ margin:0; padding:0; background:#fff; }}
+  .inner {{ width:100%; max-width:680px; margin:0 auto; background:#fff; }}
   .body  {{ padding:16px; font-size:15px; line-height:1.8; color:#333; }}
-  .sources {{ padding:0 16px 16px; }}
-  .sources-inner {{ background:#f8f9fa; border-radius:6px; padding:14px 16px; }}
-  .sources-inner p  {{ margin:0 0 8px; font-size:13px; font-weight:700; color:#555; }}
-  .sources-inner ul {{ margin:0; padding-left:16px; font-size:13px; color:#555; line-height:2.0; }}
-  .footer {{ background:#f4f4f4; padding:14px 16px; border-top:1px solid #e0e0e0; }}
+  .sources {{ padding:4px 16px 12px; border-top:1px solid #e8e8e8; }}
+  .footer {{ background:#f9f9f9; padding:12px 16px; border-top:1px solid #e0e0e0; }}
   .footer p {{ margin:0; font-size:11px; color:#999; line-height:1.6; }}
-  /* PC表示では少し余白を増やす */
   @media (min-width:480px) {{
-    .header {{ padding:28px 32px; }}
-    .header h1 {{ font-size:22px; }}
-    .body  {{ padding:32px; }}
-    .sources {{ padding:0 32px 24px; }}
-    .footer {{ padding:16px 32px; }}
+    .body  {{ padding:24px 32px; }}
+    .sources {{ padding:4px 32px 16px; }}
+    .footer {{ padding:14px 32px; }}
   }}
 </style>
 </head>
 <body>
-<div class="outer">
   <div class="inner">
 
-    <!-- ヘッダー -->
-    <div class="header">
-      <p class="label">DAILY INTELLIGENCE REPORT</p>
-      <h1>📊 日本株インテリジェンス</h1>
-      <p>{today}　|　日本株運用サポート</p>
-    </div>
-
-    <!-- 本文 -->
+    <!-- 本文（Claudeが生成したヘッダー込み） -->
     <div class="body">
       {report_html}
     </div>
 
-    <!-- ソース一覧 -->
+    <!-- ソース一覧（コンパクト） -->
     <div class="sources">
-      <div class="sources-inner">
-        <p>■ 本日の参照ソース</p>
-        <ul>{sources_html}</ul>
-      </div>
+      <p style="margin:8px 0 0;font-size:11px;color:#aaa;">📎 {sources_text}</p>
     </div>
 
     <!-- フッター -->
     <div class="footer">
-      <p>このメールは自動生成されたAI分析レポートです。投資判断はご自身の責任で行ってください。<br>
-      システム設定変更: sources.json / config.json を編集してください。</p>
+      <p>このメールは自動生成されたAI分析レポートです。投資判断はご自身の責任で行ってください。</p>
     </div>
 
   </div>
-</div>
 </body>
 </html>"""
     return html
@@ -477,7 +454,7 @@ def send_gmail(html_content: str, config: dict, test_mode: bool = False):
     test_mode=True の場合は送信せずにファイルに保存する。
     """
     today = datetime.now().strftime("%Y年%m月%d日")
-    subject = f"📊 日本株インテリジェンス｜{today}"
+    subject = f"📊 まいにち日本株短信｜{today}"
 
     if test_mode:
         # テストモード：HTMLファイルに保存
@@ -540,7 +517,7 @@ def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
 
     # LINEの1メッセージ上限（5000文字）に合わせてカット
     today = datetime.now().strftime("%Y年%m月%d日")
-    header = f"📊 日本株インテリジェンス {today}\n\n"
+    header = f"📊 まいにち日本株短信 {today}\n\n"
     limit = 4900 - len(header)
     if len(plain_text) > limit:
         plain_text = plain_text[:limit] + "\n\n…（全文は省略されました）"
@@ -572,6 +549,28 @@ def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
 
 
 # ─────────────────────────────────────────────
+# ⑦ 送信時刻まで待機
+# ─────────────────────────────────────────────
+
+def wait_until_send_time():
+    """
+    8:00 JST になるまで待機する。
+    すでに8:00を過ぎていた場合は即座に送信する。
+    """
+    import time as time_module
+    JST = timezone(timedelta(hours=9))
+    now = datetime.now(JST)
+    target = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    if now >= target:
+        log.info("送信時刻（8:00 JST）を過ぎているため即座に送信します")
+        return
+    wait_seconds = (target - now).total_seconds()
+    log.info(f"8:00 JSTまで待機中... あと {int(wait_seconds // 60)}分{int(wait_seconds % 60)}秒")
+    time_module.sleep(wait_seconds)
+    log.info("送信時刻になりました。送信を開始します。")
+
+
+# ─────────────────────────────────────────────
 # メイン処理
 # ─────────────────────────────────────────────
 
@@ -589,7 +588,7 @@ def main():
     test_mode = "--test" in sys.argv
 
     print("=" * 50)
-    print("📊 日本株インテリジェンス 起動")
+    print("📊 まいにち日本株短信 起動")
     print(f"   実行時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"   モード: {'テスト' if test_mode else '本番'}")
     print("=" * 50)
@@ -599,13 +598,15 @@ def main():
     config_path = BASE_DIR / "config.json"
     if config_path.exists():
         json_config = load_json(config_path)
-    env_config = load_env(BASE_DIR / ".env")
+    # docs/.env（中央管理）を優先して読み込み、なければプロジェクト内 .env を使用
+    central_env_path = BASE_DIR.parent.parent / "docs" / ".env"
+    env_config = load_env(central_env_path) if central_env_path.exists() else load_env(BASE_DIR / ".env")
     sources = load_json(BASE_DIR / "sources.json")
 
     config = {
         "anthropic": {
             "api_key": env_config.get("ANTHROPIC_API_KEY", json_config.get("anthropic", {}).get("api_key", "")),
-            "model": env_config.get("ANTHROPIC_MODEL", json_config.get("anthropic", {}).get("model", "claude-opus-4-5")),
+            "model": env_config.get("ANTHROPIC_MODEL", json_config.get("anthropic", {}).get("model", "claude-sonnet-4-6")),
             "max_tokens": parse_int(env_config.get("ANTHROPIC_MAX_TOKENS"), json_config.get("anthropic", {}).get("max_tokens", 8000)),
             "memo": env_config.get("ANTHROPIC_MEMO", json_config.get("anthropic", {}).get("memo", "")),
         },
@@ -704,6 +705,11 @@ def main():
     # ── HTMLメール生成 ──
     log.info("【ステップ5】HTMLメール生成")
     html = build_html_email(report_text, all_articles, all_videos)
+
+    # ── 8:00 JST まで待機 ──
+    if not (test_mode or sys_cfg.get("test_mode", False)):
+        log.info("【ステップ6準備】送信時刻（8:00 JST）まで待機")
+        wait_until_send_time()
 
     # ── メール送信 ──
     log.info("【ステップ6】メール送信")

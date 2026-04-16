@@ -51,6 +51,18 @@
           "url": "https://seekingalpha.com/feed.xml",
           "enabled": false,
           "memo": "英語・米国株メイン。必要なら有効化"
+        },
+        {
+          "name": "株探ニュース",
+          "url": "https://news.google.com/rss/search?q=site:kabutan.jp&hl=ja&gl=JP&ceid=JP:ja",
+          "enabled": true,
+          "memo": "株探の記事をGoogle News経由で取得"
+        },
+        {
+          "name": "みんかぶ",
+          "url": "https://news.google.com/rss/search?q=site:minkabu.jp+株&hl=ja&gl=JP&ceid=JP:ja",
+          "enabled": true,
+          "memo": "みんかぶの記事をGoogle News経由で取得"
         }
       ],
       "youtube_channels": [
