@@ -37,9 +37,10 @@ from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, Tran
 # 初期設定
 # ─────────────────────────────────────────────
 
-BASE_DIR = Path(__file__).parent
-LOG_DIR  = BASE_DIR / "logs"
-DATA_DIR = BASE_DIR / "data"
+BASE_DIR      = Path(__file__).parent
+LOG_DIR       = BASE_DIR / "logs"
+DATA_DIR      = BASE_DIR / "data"
+SITE_BASE_URL = "https://shotarokobori.github.io/stock-intelligence"
 LOG_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -321,7 +322,10 @@ URL: {v['url']}
 
 以下の構成で、スタイル付きのHTMLコンテンツを日本語で作成してください。
 ※出力はbodyタグ内に入れるdivのみ。DOCTYPE・html・head・bodyタグは不要。
-※先頭に必ず「まいにち日本株短信」というh1タイトルを入れること。「日本株デイリーレポート」「日本株投資レポート」等の別タイトルは使わないこと。
+※出力の一番最初の行に、その日のレポート全体を1行で表現した見出しを必ず入れること。形式は以下の通り（このタグのみ・改行なし）：
+<p class="daily-headline">（ここに20字以内の1行見出し）</p>
+例：「米利上げ懸念が再燃、日経は下値模索へ」「TSMC好決算で半導体株に追い風」
+※その直後に「まいにち日本株短信」というh1タイトルを入れること。「日本株デイリーレポート」「日本株投資レポート」等の別タイトルは使わないこと。
 ※スマホ優先デザイン：固定px幅は使わずmax-widthと%を使うこと。文字サイズは本文14px。背景は白または明るい色ベース。余白は指タップしやすい大きさに。長い文章は適切な位置で改行し、読みやすい行長（1行25〜35文字程度）を心がけること。
 ※全体の目標トークン数：6000以内。最大8000以内。余計な装飾・繰り返しは省くこと。
 
@@ -345,7 +349,7 @@ URL: {v['url']}
 
 【③　横断・統合考察】
 複数ソースを横断して見えてくる今日のテーマ・流れを丁寧に分析すること。
-因果関係・リスク・見落とされがちな視点を含め、500字程度でしっかり書くこと。
+因果関係・リスク・見落とされがちな視点を含め、300字程度でしっかり書くこと。
 
 【④　今後1〜2週間の注目ポイント】
 箇条書き3〜4項目のみ。日付・イベント・影響を簡潔に。
@@ -490,10 +494,16 @@ def send_gmail(html_content: str, config: dict, test_mode: bool = False):
 # ⑥ LINE送信
 # ─────────────────────────────────────────────
 
+def extract_headline(report_text: str) -> str:
+    """レポートHTMLから1行見出しを抽出する"""
+    m = re.search(r'class="daily-headline"[^>]*>\s*([^<]+)\s*<', report_text)
+    return m.group(1).strip() if m else ""
+
+
 def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
     """
-    LINE Messaging API でレポートを送信する。
-    複数ユーザーへのマルチキャスト送信に対応。
+    LINE Messaging API でレポートURLを一斉送信する。
+    形式：タイトル・1行見出し・サイトURL
     """
     line_cfg = config["line"]
     token    = line_cfg.get("channel_access_token", "")
@@ -502,39 +512,22 @@ def send_line(report_text: str, config: dict, test_mode: bool = False) -> None:
         log.warning("LINEチャンネルアクセストークンが未設定です。送信をスキップします。")
         return
 
-    # LINE用テキスト整形
-    plain_text = report_text
-    # ブロック要素を改行に変換
-    plain_text = re.sub(r'<br\s*/?>', '\n', plain_text, flags=re.IGNORECASE)
-    plain_text = re.sub(r'</p>', '\n', plain_text, flags=re.IGNORECASE)
-    plain_text = re.sub(r'</h[1-6]>', '\n', plain_text, flags=re.IGNORECASE)
-    plain_text = re.sub(r'</li>', '\n', plain_text, flags=re.IGNORECASE)
-    plain_text = re.sub(r'<li[^>]*>', '・', plain_text, flags=re.IGNORECASE)
-    # 残りのHTMLタグを除去
-    plain_text = re.sub(r'<[^>]+>', '', plain_text)
-    # 連続する空白行を整理
-    plain_text = re.sub(r'\n{3,}', '\n\n', plain_text).strip()
+    today    = datetime.now()
+    date_str = f"{today.month}月{today.day}日"
+    date_key = today.strftime("%Y%m%d")
+    headline = extract_headline(report_text)
+    url      = f"{SITE_BASE_URL}/archive/{date_key}.html"
 
-    # LINEの1メッセージ上限（5000文字）に合わせてカット
-    today = datetime.now().strftime("%Y年%m月%d日")
-    header = f"📊 まいにち日本株短信 {today}\n\n"
-    limit = 4900 - len(header)
-    if len(plain_text) > limit:
-        plain_text = plain_text[:limit] + "\n\n…（全文は省略されました）"
-    message = header + plain_text
+    message = f"📊 まいにち日本株短信　{date_str}\n{headline}\n{url}"
 
     if test_mode:
         log.info("[テストモード] LINE送信スキップ")
+        log.info(f"  送信予定メッセージ:\n{message}")
         print("\n✅ [テストモード] LINE送信スキップ\n")
         return
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messages": [{"type": "text", "text": message}],
-    }
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {"messages": [{"type": "text", "text": message}]}
     response = requests.post(
         "https://api.line.me/v2/bot/message/broadcast",
         headers=headers,
@@ -705,6 +698,14 @@ def main():
     # ── HTMLメール生成 ──
     log.info("【ステップ5】HTMLメール生成")
     html = build_html_email(report_text, all_articles, all_videos)
+
+    # ── アーカイブ保存（docs/archive/YYYYMMDD.html）──
+    archive_dir = BASE_DIR / "docs" / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = archive_dir / f"{datetime.now().strftime('%Y%m%d')}.html"
+    with open(archive_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    log.info(f"アーカイブ保存: {archive_path}")
 
     # ── 8:00 JST まで待機 ──
     if not (test_mode or sys_cfg.get("test_mode", False)):
