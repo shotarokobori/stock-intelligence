@@ -74,13 +74,13 @@ def get_pick_chart_svg() -> str:
                 )
 
         name_label = (
-            f'  <text x="{W - pad_r - 8}" y="{H - pad_b + 34:.1f}" text-anchor="end"'
+            f'  <text x="{pad_l}" y="{H - pad_b + 34:.1f}" text-anchor="start"'
             f' font-size="11" fill="#a8c8e8" opacity="0.38"'
             f' font-family="sans-serif">{pick["name"]} 30日チャート</text>'
         )
 
         return f"""<svg class="hero-chart" xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMid slice">
+  viewBox="0 0 {W} {H}" preserveAspectRatio="xMinYMid slice">
   <defs>
     <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#8ab4d8" stop-opacity="0.18"/>
