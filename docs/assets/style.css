@@ -223,9 +223,6 @@ body {
   .archive-grid {
     grid-template-columns: 1fr;
   }
-  .hero {
-    padding: 48px 16px 40px;
-  }
   .hero-date {
     font-size: 26px;
   }
@@ -234,5 +231,8 @@ body {
   }
   .main-content {
     padding: 36px 16px 48px;
+  }
+  .hero-chart text {
+    display: none;
   }
 }

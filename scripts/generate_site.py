@@ -80,7 +80,7 @@ def get_pick_chart_svg() -> str:
         )
 
         return f"""<svg class="hero-chart" xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 {W} {H}" preserveAspectRatio="none">
+  viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#8ab4d8" stop-opacity="0.18"/>
