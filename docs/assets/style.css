@@ -60,9 +60,22 @@ body {
 /* ─── ヒーロー ─── */
 .hero {
   background: linear-gradient(150deg, var(--navy) 0%, #2d3561 100%);
-  padding: 72px 24px 64px;
+  padding: 0;
   text-align: center;
   position: relative;
+  overflow: hidden;
+}
+.hero-chart {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+  padding: 72px 24px 64px;
 }
 .hero::after {
   content: "";

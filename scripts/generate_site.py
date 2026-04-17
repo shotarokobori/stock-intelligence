@@ -3,16 +3,58 @@ docs/archive/*.html を読み込んで docs/index.html を自動生成するス�
 GitHub Actions から毎日実行される。
 """
 
+import json
 import re
 import sys
 from pathlib import Path
 from datetime import datetime
+
+import yfinance as yf
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_DIR  = Path(__file__).parent.parent
 DOCS_DIR  = BASE_DIR / "docs"
 ARCHIVE_DIR = DOCS_DIR / "archive"
+PICK_FILE = BASE_DIR / "data" / "pick.json"
+
+
+def get_pick_chart_svg() -> str:
+    """激推し株の直近30日足チャートをSVGで返す。取得失敗時は空文字。"""
+    if not PICK_FILE.exists():
+        return ""
+    try:
+        with open(PICK_FILE, encoding="utf-8") as f:
+            pick = json.load(f)
+        hist = yf.Ticker(pick["ticker"]).history(period="30d")
+        closes = hist["Close"].tolist()
+        if len(closes) < 5:
+            return ""
+        mn, mx = min(closes), max(closes)
+        if mx == mn:
+            return ""
+        W, H = 1100, 320
+        pad_x, pad_y = 0, 50
+        pts = [
+            (pad_x + i / (len(closes) - 1) * (W - 2 * pad_x),
+             H - pad_y - (c - mn) / (mx - mn) * (H - 2 * pad_y))
+            for i, c in enumerate(closes)
+        ]
+        line = "M " + " L ".join(f"{x:.1f} {y:.1f}" for x, y in pts)
+        fill = line + f" L {pts[-1][0]:.1f} {H} L {pts[0][0]:.1f} {H} Z"
+        return f"""<svg class="hero-chart" xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 {W} {H}" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8ab4d8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#8ab4d8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="{fill}" fill="url(#cg)"/>
+  <path d="{line}" fill="none" stroke="#a8c8e8" stroke-width="2" opacity="0.45"/>
+</svg>"""
+    except Exception:
+        return ""
 
 
 def extract_info(html_path: Path) -> dict | None:
@@ -49,7 +91,7 @@ def make_card(info: dict, is_latest: bool) -> str:
     nikkei   = f'<div class="card-nikkei">日経平均 {info["nikkei"]}円</div>' if info["nikkei"] else ""
     headline = f'<div class="card-headline">{info["headline"]}</div>' if info.get("headline") else ""
     return f"""    <a href="archive/{info['filename']}" class="card">
-      <div class="card-header">{badge}<div class="card-date">{info['date_str']}</div></div>
+      <div class="card-header"><div class="card-date">{info['date_str']}</div>{badge}</div>
       {nikkei}
       {headline}
       <div class="card-link">レポートを読む →</div>
@@ -67,6 +109,7 @@ def main():
     latest      = reports[0]
     hero_nikkei = f"日経平均 {latest['nikkei']}円" if latest["nikkei"] else ""
     cards_html  = "\n".join(make_card(r, i == 0) for i, r in enumerate(reports))
+    pick_chart  = get_pick_chart_svg()
 
     html = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -86,10 +129,13 @@ def main():
 </header>
 
 <section class="hero">
-  <div class="hero-label">LATEST REPORT</div>
-  <div class="hero-date">{latest['date_str']}</div>
-  <div class="hero-nikkei">{hero_nikkei}</div>
-  <a href="archive/{latest['filename']}" class="hero-btn">今日のレポートを読む →</a>
+  {pick_chart}
+  <div class="hero-content">
+    <div class="hero-label">LATEST REPORT</div>
+    <div class="hero-date">{latest['date_str']}</div>
+    <div class="hero-nikkei">{hero_nikkei}</div>
+    <a href="archive/{latest['filename']}" class="hero-btn">今日のレポートを読む →</a>
+  </div>
 </section>
 
 <main class="main-content">
