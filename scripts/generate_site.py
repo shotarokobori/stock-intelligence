@@ -19,78 +19,84 @@ ARCHIVE_DIR = DOCS_DIR / "archive"
 PICK_FILE = BASE_DIR / "data" / "pick.json"
 
 
+def _build_chart_svg(closes: list, pick_name: str, W: int, H: int, suffix: str) -> str:
+    """指定サイズのチャートSVGを生成する"""
+    mn, mx = min(closes), max(closes)
+    if mx == mn:
+        return ""
+    pad_l, pad_r, pad_t, pad_b = 62, 12, 28, 42
+    font = 10 if W < 500 else 11
+
+    def iy(p):
+        return H - pad_b - (p - mn) / (mx - mn) * (H - pad_t - pad_b)
+
+    def ix(i):
+        return pad_l + i / (len(closes) - 1) * (W - pad_l - pad_r)
+
+    pts  = [(ix(i), iy(c)) for i, c in enumerate(closes)]
+    line = "M " + " L ".join(f"{x:.1f} {y:.1f}" for x, y in pts)
+    fill = line + f" L {pts[-1][0]:.1f} {H - pad_b:.1f} L {pad_l} {H - pad_b:.1f} Z"
+
+    # 価格目盛り（上2桁以下0、3〜6本）
+    digits = len(str(int(mn)))
+    unit   = 10 ** (digits - 2)
+    lo = (int(mn) // unit + 1) * unit
+    hi = (int(mx) // unit) * unit
+    ticks = list(range(lo, hi + 1, unit))
+    while len(ticks) > 6 and unit > 0:
+        unit *= 2
+        lo = (int(mn) // unit + 1) * unit
+        hi = (int(mx) // unit) * unit
+        ticks = list(range(lo, hi + 1, unit))
+
+    grid = ""
+    for t in ticks:
+        y = iy(t)
+        if pad_t <= y <= H - pad_b:
+            grid += (
+                f'  <line x1="{pad_l}" y1="{y:.1f}" x2="{W-pad_r}" y2="{y:.1f}"'
+                f' stroke="#a8c8e8" stroke-width="0.6" opacity="0.2"/>\n'
+                f'  <text x="{pad_l-5}" y="{y+4:.1f}" text-anchor="end"'
+                f' font-size="{font}" fill="#a8c8e8" opacity="0.45"'
+                f' font-family="monospace">{t:,}</text>\n'
+            )
+
+    name = (
+        f'  <text x="{W-pad_r-6}" y="{H-10:.1f}" text-anchor="end"'
+        f' font-size="{font}" fill="#a8c8e8" opacity="0.38"'
+        f' font-family="sans-serif">{pick_name} 30日チャート</text>'
+    )
+
+    return f"""<svg class="hero-chart hero-chart-{suffix}" xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 {W} {H}" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="cg-{suffix}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8ab4d8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#8ab4d8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+{grid}  <path d="{fill}" fill="url(#cg-{suffix})"/>
+  <path d="{line}" fill="none" stroke="#a8c8e8" stroke-width="2" opacity="0.45"/>
+{name}
+</svg>"""
+
+
 def get_pick_chart_svg() -> str:
-    """激推し株の直近30日足チャートをSVGで返す。取得失敗時は空文字。"""
+    """PC用・スマホ用の2種類のチャートSVGを返す。取得失敗時は空文字。"""
     if not PICK_FILE.exists():
         return ""
     try:
         with open(PICK_FILE, encoding="utf-8") as f:
             pick = json.load(f)
-        hist = yf.Ticker(pick["ticker"]).history(period="30d")
+        hist   = yf.Ticker(pick["ticker"]).history(period="30d")
         closes = hist["Close"].tolist()
         if len(closes) < 5:
             return ""
-        mn, mx = min(closes), max(closes)
-        if mx == mn:
-            return ""
-
-        W, H = 1100, 320
-        pad_l, pad_r, pad_t, pad_b = 70, 10, 35, 50
-
-        def price_to_y(p):
-            return H - pad_b - (p - mn) / (mx - mn) * (H - pad_t - pad_b)
-
-        def idx_to_x(i):
-            return pad_l + i / (len(closes) - 1) * (W - pad_l - pad_r)
-
-        pts = [(idx_to_x(i), price_to_y(c)) for i, c in enumerate(closes)]
-        line = "M " + " L ".join(f"{x:.1f} {y:.1f}" for x, y in pts)
-        fill = line + f" L {pts[-1][0]:.1f} {H - pad_b:.1f} L {pad_l} {H - pad_b:.1f} Z"
-
-        # 価格軸の目盛り：上2桁以下を0に（桁数から単位を決定）
-        digits = len(str(int(mn)))
-        unit = 10 ** (digits - 2)
-        tick_lo = (int(mn) // unit + 1) * unit
-        tick_hi = (int(mx) // unit) * unit
-        ticks = list(range(tick_lo, tick_hi + 1, unit))
-        # 多すぎる場合は間引く
-        while len(ticks) > 6 and unit > 0:
-            unit *= 2
-            tick_lo = (int(mn) // unit + 1) * unit
-            tick_hi = (int(mx) // unit) * unit
-            ticks = list(range(tick_lo, tick_hi + 1, unit))
-
-        grid_svg = ""
-        for tick in ticks:
-            y = price_to_y(tick)
-            if pad_t <= y <= H - pad_b:
-                label = f"{tick:,}"
-                grid_svg += (
-                    f'  <line x1="{pad_l}" y1="{y:.1f}" x2="{W - pad_r}" y2="{y:.1f}"'
-                    f' stroke="#a8c8e8" stroke-width="0.6" opacity="0.2"/>\n'
-                    f'  <text x="{pad_l - 6}" y="{y + 4:.1f}" text-anchor="end"'
-                    f' font-size="11" fill="#a8c8e8" opacity="0.45"'
-                    f' font-family="monospace">{label}</text>\n'
-                )
-
-        name_label = (
-            f'  <text x="{pad_l}" y="{H - pad_b + 34:.1f}" text-anchor="start"'
-            f' font-size="11" fill="#a8c8e8" opacity="0.38"'
-            f' font-family="sans-serif">{pick["name"]} 30日チャート</text>'
+        name = pick["name"]
+        return (
+            _build_chart_svg(closes, name, 1100, 320, "desktop") + "\n" +
+            _build_chart_svg(closes, name,  400, 280, "mobile")
         )
-
-        return f"""<svg class="hero-chart" xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 {W} {H}" preserveAspectRatio="xMinYMid slice">
-  <defs>
-    <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8ab4d8" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#8ab4d8" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-{grid_svg}  <path d="{fill}" fill="url(#cg)"/>
-  <path d="{line}" fill="none" stroke="#a8c8e8" stroke-width="2" opacity="0.45"/>
-{name_label}
-</svg>"""
     except Exception:
         return ""
 

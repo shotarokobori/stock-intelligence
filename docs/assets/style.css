@@ -72,6 +72,20 @@ body {
   height: 100%;
   pointer-events: none;
 }
+.hero-chart-mobile {
+  display: none;
+}
+.hero-chart-desktop {
+  display: block;
+}
+@media (max-width: 560px) {
+  .hero-chart-desktop {
+    display: none;
+  }
+  .hero-chart-mobile {
+    display: block;
+  }
+}
 .hero-content {
   position: relative;
   z-index: 1;
