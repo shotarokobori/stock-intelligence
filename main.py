@@ -430,6 +430,8 @@ def build_html_email(report_text: str, articles: list[dict], videos: list[dict])
 <title>まいにち日本株短信｜{today}</title>
 <style>
   body {{ margin:0; padding:0; background:#fff; }}
+  .site-nav {{ background:#1a1f3a; border-bottom:2px solid #c9a84c; padding:12px 20px; }}
+  .site-nav a {{ color:#c9a84c; text-decoration:none; font-weight:700; font-size:14px; letter-spacing:0.3px; }}
   .inner {{ width:100%; max-width:680px; margin:0 auto; background:#fff; }}
   .body  {{ padding:16px; font-size:15px; line-height:1.8; color:#333; }}
   .sources {{ padding:4px 16px 12px; border-top:1px solid #e8e8e8; }}
@@ -443,6 +445,9 @@ def build_html_email(report_text: str, articles: list[dict], videos: list[dict])
 </style>
 </head>
 <body>
+  <div class="site-nav">
+    <a href="../">← まいにち日本株短信</a>
+  </div>
   <div class="inner">
 
     <!-- 本文（Claudeが生成したヘッダー込み） -->

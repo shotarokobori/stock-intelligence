@@ -51,6 +51,7 @@ body {
   font-weight: 700;
   color: var(--gold);
   letter-spacing: 0.5px;
+  text-decoration: none;
 }
 .tagline {
   font-size: 12px;

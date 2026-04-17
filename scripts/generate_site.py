@@ -167,7 +167,7 @@ def main():
 
 <header class="site-header">
   <div class="header-inner">
-    <div class="logo">まいにち日本株短信</div>
+    <a class="logo" href="./">まいにち日本株短信</a>
     <div class="tagline">AI分析による日本株デイリーレポート</div>
   </div>
 </header>
