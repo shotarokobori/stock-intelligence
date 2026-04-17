@@ -33,15 +33,52 @@ def get_pick_chart_svg() -> str:
         mn, mx = min(closes), max(closes)
         if mx == mn:
             return ""
+
         W, H = 1100, 320
-        pad_x, pad_y = 0, 50
-        pts = [
-            (pad_x + i / (len(closes) - 1) * (W - 2 * pad_x),
-             H - pad_y - (c - mn) / (mx - mn) * (H - 2 * pad_y))
-            for i, c in enumerate(closes)
-        ]
+        pad_l, pad_r, pad_t, pad_b = 70, 10, 35, 50
+
+        def price_to_y(p):
+            return H - pad_b - (p - mn) / (mx - mn) * (H - pad_t - pad_b)
+
+        def idx_to_x(i):
+            return pad_l + i / (len(closes) - 1) * (W - pad_l - pad_r)
+
+        pts = [(idx_to_x(i), price_to_y(c)) for i, c in enumerate(closes)]
         line = "M " + " L ".join(f"{x:.1f} {y:.1f}" for x, y in pts)
-        fill = line + f" L {pts[-1][0]:.1f} {H} L {pts[0][0]:.1f} {H} Z"
+        fill = line + f" L {pts[-1][0]:.1f} {H - pad_b:.1f} L {pad_l} {H - pad_b:.1f} Z"
+
+        # 価格軸の目盛り：上2桁以下を0に（桁数から単位を決定）
+        digits = len(str(int(mn)))
+        unit = 10 ** (digits - 2)
+        tick_lo = (int(mn) // unit + 1) * unit
+        tick_hi = (int(mx) // unit) * unit
+        ticks = list(range(tick_lo, tick_hi + 1, unit))
+        # 多すぎる場合は間引く
+        while len(ticks) > 6 and unit > 0:
+            unit *= 2
+            tick_lo = (int(mn) // unit + 1) * unit
+            tick_hi = (int(mx) // unit) * unit
+            ticks = list(range(tick_lo, tick_hi + 1, unit))
+
+        grid_svg = ""
+        for tick in ticks:
+            y = price_to_y(tick)
+            if pad_t <= y <= H - pad_b:
+                label = f"{tick:,}"
+                grid_svg += (
+                    f'  <line x1="{pad_l}" y1="{y:.1f}" x2="{W - pad_r}" y2="{y:.1f}"'
+                    f' stroke="#a8c8e8" stroke-width="0.6" opacity="0.2"/>\n'
+                    f'  <text x="{pad_l - 6}" y="{y + 4:.1f}" text-anchor="end"'
+                    f' font-size="11" fill="#a8c8e8" opacity="0.45"'
+                    f' font-family="monospace">{label}</text>\n'
+                )
+
+        name_label = (
+            f'  <text x="{W - pad_r - 8}" y="{H - pad_b + 34:.1f}" text-anchor="end"'
+            f' font-size="11" fill="#a8c8e8" opacity="0.38"'
+            f' font-family="sans-serif">{pick["name"]} 30日チャート</text>'
+        )
+
         return f"""<svg class="hero-chart" xmlns="http://www.w3.org/2000/svg"
   viewBox="0 0 {W} {H}" preserveAspectRatio="none">
   <defs>
@@ -50,8 +87,9 @@ def get_pick_chart_svg() -> str:
       <stop offset="100%" stop-color="#8ab4d8" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <path d="{fill}" fill="url(#cg)"/>
+{grid_svg}  <path d="{fill}" fill="url(#cg)"/>
   <path d="{line}" fill="none" stroke="#a8c8e8" stroke-width="2" opacity="0.45"/>
+{name_label}
 </svg>"""
     except Exception:
         return ""
